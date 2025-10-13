@@ -1,0 +1,69 @@
+blueprint:
+  name: Miele program phase finished notification
+  description: >
+    Sends a push notification when selected Miele program-phase sensors reach the target state (default: 'End').
+    Filters automatically to only show Miele program-phase sensors (e.g. sensor.tumble_dryer_program_phase_2).
+  domain: automation
+  source_url: https://github.com/ryanmccullough/home-assistant-blueprints/blob/main/blueprints/automation/ryanmccullough/miele_program_phase_finished.yaml
+
+  input:
+    appliances:
+      name: Miele program-phase sensors
+      description: >
+        Select one or more Miele program-phase sensors (e.g. sensor.tumble_dryer_program_phase_2).
+        Only Miele sensors with '*_program_phase*' in the entity_id are shown.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: sensor
+              integration: miele
+              entity_id: sensor.*_program_phase*
+    target_state:
+      name: Target state
+      description: >
+        The program-phase state that indicates completion.
+        For Miele program-phase sensors this is typically 'Finished'.
+      default: "Finished"
+      selector:
+        text:
+    hold_time:
+      name: Hold time (duration)
+      description: >
+        Duration the sensor must stay at the target state before notifying (e.g. 00:01:00).
+        Enter as HH:MM:SS.
+      default: "00:00:05"
+      selector:
+        text:
+    notify_service:
+      name: Notify service
+      description: >
+        Home Assistant notify service to use (e.g. notify.mobile_app_ryans_iphone or notify.family).
+      default: notify.all_devices
+      selector:
+        text:
+
+mode: parallel
+max: 10
+
+trigger:
+  - platform: state
+    entity_id: !input appliances
+    to: !input target_state
+    for: !input hold_time
+
+condition: []
+
+action:
+  - variables:
+      appliance_name: "{{ trigger.to_state.name | default(trigger.entity_id) }}"
+      previous_state: "{{ trigger.from_state.state if trigger.from_state is not none else 'unknown' }}"
+
+  # Prevent duplicate triggers when already in End state
+  - condition: template
+    value_template: "{{ previous_state != (inputs.target_state | default('End')) }}"
+
+  - service: !input notify_service
+    data:
+      title: "Appliance finished"
+      message: "{{ appliance_name }} reached '{{ trigger.to_state.state }}'."
