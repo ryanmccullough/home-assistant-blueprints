@@ -5,7 +5,6 @@ blueprint:
     The selector shows only Miele sensors; a runtime guard ensures the entity_id matches '*_program_phase*'.
   domain: automation
   source_url: https://github.com/ryanmccullough/home-assistant-blueprints/blob/main/blueprints/automation/ryanmccullough/miele_program_phase_finished.yaml
-  version: "1.0.1"
 
   input:
     appliances:
