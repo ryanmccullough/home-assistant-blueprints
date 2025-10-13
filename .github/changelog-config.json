@@ -1,0 +1,11 @@
+{
+  "categories": [
+    { "title": "🚀 Features", "labels": ["feature", "enhancement"], "labelsExclude": [], "pullRequests": { "include": true } },
+    { "title": "🐞 Fixes",    "labels": ["bug", "fix"],           "labelsExclude": [], "pullRequests": { "include": true } },
+    { "title": "📝 Docs",     "labels": ["documentation", "docs"],"labelsExclude": [], "pullRequests": { "include": true } },
+    { "title": "🧹 Chore",    "labels": ["chore", "refactor"],    "labelsExclude": [], "pullRequests": { "include": true } }
+  ],
+  "template": "## Changes\n\n${{CHANGELOG}}\n",
+  "pr_template": "- ${{TITLE}} (#${{NUMBER}}) by @${{AUTHOR}}",
+  "empty_template": "No user-facing changes."
+}
