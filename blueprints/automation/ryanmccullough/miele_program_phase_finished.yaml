@@ -2,44 +2,36 @@ blueprint:
   name: Miele program phase finished notification
   description: >
     Sends a push notification when selected Miele program-phase sensors reach the target state (default: 'End').
-    Filters automatically to only show Miele program-phase sensors (e.g. sensor.tumble_dryer_program_phase_2).
+    The selector shows only Miele sensors; a runtime guard ensures the entity_id matches '*_program_phase*'.
   domain: automation
   source_url: https://github.com/ryanmccullough/home-assistant-blueprints/blob/main/blueprints/automation/ryanmccullough/miele_program_phase_finished.yaml
-  version: "1.0.0"
+  version: "1.0.1"
 
   input:
     appliances:
-      name: Miele program-phase sensors
-      description: >
-        Select one or more Miele program-phase sensors (e.g. sensor.tumble_dryer_program_phase_2).
-        Only Miele sensors with '*_program_phase*' in the entity_id are shown.
+      name: Miele sensors
+      description: Select Miele program-phase sensors (e.g., sensor.tumble_dryer_program_phase_2).
       selector:
         entity:
           multiple: true
           filter:
-            - domain: sensor
-              integration: miele
-              entity_id: sensor.*_program_phase*
+            - integration: miele
+              domain: sensor
     target_state:
       name: Target state
-      description: >
-        The program-phase state that indicates completion.
-        For Miele program-phase sensors this is typically 'End'.
+      description: Program-phase state that indicates completion (typically 'End').
       default: "End"
       selector:
         text:
     hold_time:
       name: Hold time (duration)
-      description: >
-        Duration the sensor must stay at the target state before notifying (e.g. 00:01:00).
-        Enter as HH:MM:SS.
+      description: Duration to remain at target state before notifying (HH:MM:SS, e.g. 00:01:00).
       default: "00:01:00"
       selector:
         text:
     notify_service:
       name: Notify service
-      description: >
-        Home Assistant notify service to use (e.g. notify.mobile_app_ryans_iphone or notify.family).
+      description: e.g., notify.mobile_app_ryans_iphone or notify.family
       default: notify.mobile_app_ryans_iphone
       selector:
         text:
@@ -57,12 +49,14 @@ condition: []
 
 action:
   - variables:
+      target_state_var: !input target_state
       appliance_name: "{{ trigger.to_state.name | default(trigger.entity_id) }}"
       previous_state: "{{ trigger.from_state.state if trigger.from_state is not none else 'unknown' }}"
+      is_program_phase: "{{ trigger.entity_id | regex_search('^sensor\\..*_program_phase.*') }}"
 
-  # Prevent duplicate triggers when already in End state
+  # Guard: only proceed for *_program_phase* entities and avoid duplicate when already in target state
   - condition: template
-    value_template: "{{ previous_state != (inputs.target_state | default('End')) }}"
+    value_template: "{{ is_program_phase and previous_state != target_state_var }}"
 
   - service: !input notify_service
     data:
