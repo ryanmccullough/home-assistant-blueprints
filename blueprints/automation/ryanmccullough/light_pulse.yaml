@@ -1,0 +1,84 @@
+blueprint:
+  name: Button → Light Pulse (ZHA)
+  description: >
+    Converts a ZHA button/switch press into a momentary "pulse" on an input_boolean,
+    so you can group it with a motion sensor and feed a single trigger sensor to your
+    Sensor Light blueprint (scenes/colors apply correctly).
+  domain: automation
+  source_url: https://github.com/ryanmccullough/home-assistant-blueprints/blueprints/automation/ryanmccullought/light_pulse.yaml
+  input:
+    button_device:
+      name: ZHA Button / Switch Device
+      description: Select the ZHA device that will trigger the pulse.
+      selector:
+        device:
+          integration: zha
+
+    event_type:
+      name: ZHA Event Type
+      description: Choose the press action type emitted by your device.
+      default: remote_button_short_press
+      selector:
+        select:
+          options:
+            - remote_button_short_press
+            - remote_button_double_press
+            - remote_button_long_press
+            - remote_button_long_release
+            - remote_button_triple_press
+            - remote_button_quadruple_press
+
+    event_subtype:
+      name: ZHA Event Subtype
+      description: Logical button/channel on the device (varies by device).
+      default: turn_on
+      selector:
+        select:
+          options:
+            - turn_on
+            - turn_off
+            - left
+            - right
+            - up
+            - down
+            - button
+            - 1
+            - 2
+            - 3
+            - 4
+
+    pulse_boolean:
+      name: Pulse Toggle (input_boolean)
+      description: The helper that will be turned on briefly, then off.
+      selector:
+        entity:
+          domain: input_boolean
+
+    pulse_duration:
+      name: Pulse Duration
+      description: How long the pulse should stay ON before turning OFF.
+      default: 00:00:02
+      selector:
+        duration: {}
+
+mode: single
+
+triggers:
+  - platform: device
+    domain: zha
+    device_id: !input button_device
+    type: !input event_type
+    subtype: !input event_subtype
+
+conditions: []
+
+actions:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: !input pulse_boolean
+
+  - delay: !input pulse_duration
+
+  - action: input_boolean.turn_off
+    target:
+      entity_id: !input pulse_boolean
