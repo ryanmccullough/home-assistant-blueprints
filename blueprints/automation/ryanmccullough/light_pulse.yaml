@@ -5,7 +5,7 @@ blueprint:
     so you can group it with a motion sensor and feed a single trigger sensor to your
     Sensor Light blueprint (scenes/colors apply correctly).
   domain: automation
-  source_url: https://github.com/ryanmccullough/home-assistant-blueprints/blob/main/blueprints/automation/ryanmccullough/light_pulse.yaml
+  source_url: https://raw.githubusercontent.com/ryanmccullough/home-assistant-blueprints/main/blueprints/automation/ryanmccullough/light_pulse.yaml
   input:
     button_device:
       name: ZHA Button / Switch Device
@@ -16,36 +16,17 @@ blueprint:
 
     event_type:
       name: ZHA Event Type
-      description: Choose the press action type emitted by your device.
+      description: Enter the device action type (e.g., remote_button_short_press, remote_button_double_press).
       default: remote_button_short_press
       selector:
-        select:
-          options:
-            - "remote_button_short_press"
-            - "remote_button_double_press"
-            - "remote_button_long_press"
-            - "remote_button_long_release"
-            - "remote_button_triple_press"
-            - "remote_button_quadruple_press"
+        text:
 
     event_subtype:
       name: ZHA Event Subtype
-      description: Logical button/channel on the device (varies by device).
+      description: Enter the logical button/channel (e.g., turn_on, turn_off, left, right, 1, 2, 3, 4).
       default: turn_on
       selector:
-        select:
-          options:
-            - "turn_on"
-            - "turn_off"
-            - "left"
-            - "right"
-            - "up"
-            - "down"
-            - "button"
-            - "1"
-            - "2"
-            - "3"
-            - "4"
+        text:
 
     pulse_boolean:
       name: Pulse Toggle (input_boolean)
