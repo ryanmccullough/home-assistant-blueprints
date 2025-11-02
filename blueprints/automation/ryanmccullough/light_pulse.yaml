@@ -1,36 +1,21 @@
 blueprint:
-  name: Button → Light Pulse (ZHA)
+  name: Button → Light Pulse (UI trigger picker)
   description: >
-    Converts a ZHA button/switch press into a momentary "pulse" on an input_boolean,
-    so you can group it with a motion sensor and feed a single trigger sensor to your
-    Sensor Light blueprint (scenes/colors apply correctly).
+    Lets you select a device trigger (e.g., ZHA button press) from the UI and
+    converts it into a brief ON pulse on an input_boolean.
   domain: automation
   source_url: https://raw.githubusercontent.com/ryanmccullough/home-assistant-blueprints/main/blueprints/automation/ryanmccullough/light_pulse.yaml
+
   input:
-    button_device:
-      name: ZHA Button / Switch Device
-      description: Select the ZHA device that will trigger the pulse.
+    trigger_input:
+      name: Button press (pick the trigger)
+      description: Select the device trigger (e.g., ZHA single press on your switch).
       selector:
-        device:
-          integration: zha
-
-    event_type:
-      name: ZHA Event Type
-      description: Enter the device action type (e.g., remote_button_short_press, remote_button_double_press).
-      default: remote_button_short_press
-      selector:
-        text:
-
-    event_subtype:
-      name: ZHA Event Subtype
-      description: Enter the logical button/channel (e.g., turn_on, turn_off, left, right, 1, 2, 3, 4).
-      default: turn_on
-      selector:
-        text:
+        trigger:
 
     pulse_boolean:
       name: Pulse Toggle (input_boolean)
-      description: The helper that will be turned on briefly, then off.
+      description: Helper to turn ON briefly, then OFF.
       selector:
         entity:
           domain: input_boolean
@@ -44,12 +29,9 @@ blueprint:
 
 mode: single
 
-trigger:
-  - platform: device
-    domain: zha
-    device_id: !input button_device
-    type: !input event_type
-    subtype: !input event_subtype
+# Merge the chosen trigger(s) into this automation
+triggers:
+  - triggers: !input trigger_input
 
 condition: []
 
