@@ -24,7 +24,7 @@ blueprint:
     # Code & timing
     passcode:
       name: Passcode (digits 1–4)
-      default: "1331"
+      default: "1234"
       selector:
         text: {}
     max_length:
