@@ -1,9 +1,10 @@
 blueprint:
-  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA — fixed
+  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA — debug version
   description: >
     Use a ZGMISmart ZMR4 (ZHA) as a PIN keypad for things like a garage door.
     Press Start to arm (starts timer), press digits (1–4), then Confirm to validate.
     Endpoint + command matching is handled in the action (no templated event_data).
+    This version includes logbook debug messages after Start, each Digit, and Confirm.
   domain: automation
 
   input:
@@ -215,6 +216,10 @@ action:
               entity_id: "{{ v_buffer }}"
             data:
               value: ""
+          - service: logbook.log
+            data:
+              name: "Garage Keypad"
+              message: "Timeout → buffer cleared"
 
       # ===== ZHA BUTTON PRESSES =====
       - conditions: "{{ trigger.id == 'zha' }}"
@@ -229,6 +234,19 @@ action:
               d2_cmd: "{{ v_d2_cmd_ovr if v_d2_cmd_ovr|length>0 else v_press_cmd }}"
               d3_cmd: "{{ v_d3_cmd_ovr if v_d3_cmd_ovr|length>0 else v_press_cmd }}"
               d4_cmd: "{{ v_d4_cmd_ovr if v_d4_cmd_ovr|length>0 else v_press_cmd }}"
+              # accept common Tuya/Zemismart command variants for digits
+              allowed_digit_cmds: >
+                {{ [
+                    'remote_button_short_press',
+                    'on','off','toggle',
+                    'move_to_level_with_on_off',
+                    'move_to_color_temp'
+                  ] }}
+          - service: logbook.log
+            data:
+              name: "Garage Keypad"
+              message: "Event → ep={{ ep }}, cmd={{ cmd }}"
+
           - choose:
               # ===== START =====
               - conditions: "{{ ep == v_start_ep|int and cmd == start_cmd }}"
@@ -243,9 +261,13 @@ action:
                       entity_id: "{{ v_timer }}"
                     data:
                       duration: "{{ v_timeout|int }}"
+                  - service: logbook.log
+                    data:
+                      name: "Garage Keypad"
+                      message: "Start detected → timer started {{ v_timeout|int }}s, buffer cleared"
 
               # ===== DIGIT 1..4 =====
-              - conditions: "{{ ep == v_d1_ep|int and cmd == d1_cmd }}"
+              - conditions: "{{ ep == v_d1_ep|int and (cmd == d1_cmd or cmd in allowed_digit_cmds) }}"
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
@@ -263,8 +285,12 @@ action:
                       entity_id: "{{ v_timer }}"
                     data:
                       duration: "{{ v_timeout|int }}"
+                  - service: logbook.log
+                    data:
+                      name: "Garage Keypad"
+                      message: "Digit 1 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
-              - conditions: "{{ ep == v_d2_ep|int and cmd == d2_cmd }}"
+              - conditions: "{{ ep == v_d2_ep|int and (cmd == d2_cmd or cmd in allowed_digit_cmds) }}"
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
@@ -282,8 +308,12 @@ action:
                       entity_id: "{{ v_timer }}"
                     data:
                       duration: "{{ v_timeout|int }}"
+                  - service: logbook.log
+                    data:
+                      name: "Garage Keypad"
+                      message: "Digit 2 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
-              - conditions: "{{ ep == v_d3_ep|int and cmd == d3_cmd }}"
+              - conditions: "{{ ep == v_d3_ep|int and (cmd == d3_cmd or cmd in allowed_digit_cmds) }}"
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
@@ -301,8 +331,12 @@ action:
                       entity_id: "{{ v_timer }}"
                     data:
                       duration: "{{ v_timeout|int }}"
+                  - service: logbook.log
+                    data:
+                      name: "Garage Keypad"
+                      message: "Digit 3 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
-              - conditions: "{{ ep == v_d4_ep|int and cmd == d4_cmd }}"
+              - conditions: "{{ ep == v_d4_ep|int and (cmd == d4_cmd or cmd in allowed_digit_cmds) }}"
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
@@ -320,15 +354,33 @@ action:
                       entity_id: "{{ v_timer }}"
                     data:
                       duration: "{{ v_timeout|int }}"
+                  - service: logbook.log
+                    data:
+                      name: "Garage Keypad"
+                      message: "Digit 4 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
               # ===== CONFIRM =====
               - conditions: "{{ ep == v_confirm_ep|int and cmd == confirm_cmd }}"
                 sequence:
                   - choose:
                       - conditions: "{{ states(v_buffer) == v_code }}"
-                        sequence: !input on_success
+                        sequence:
+                          - service: logbook.log
+                            data:
+                              name: "Garage Keypad"
+                              message: "Confirm → SUCCESS (code matched)"
+                          - choose:
+                              - conditions: "{{ true }}"
+                                sequence: !input on_success
                       - conditions: "{{ states(v_buffer) != v_code }}"
-                        sequence: !input on_failure
+                        sequence:
+                          - service: logbook.log
+                            data:
+                              name: "Garage Keypad"
+                              message: "Confirm → FAILURE (buffer='{{ states(v_buffer) }}', expected='{{ v_code }}')"
+                          - choose:
+                              - conditions: "{{ true }}"
+                                sequence: !input on_failure
                   - service: input_text.set_value
                     target:
                       entity_id: "{{ v_buffer }}"
@@ -337,4 +389,8 @@ action:
                   - service: timer.cancel
                     target:
                       entity_id: "{{ v_timer }}"
+                  - service: logbook.log
+                    data:
+                      name: "Garage Keypad"
+                      message: "Confirm → buffer cleared, timer cancelled"
     default: []
