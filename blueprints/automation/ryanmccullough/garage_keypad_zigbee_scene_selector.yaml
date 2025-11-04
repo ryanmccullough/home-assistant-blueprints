@@ -1,10 +1,10 @@
 blueprint:
-  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA — debug version
+  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA — debug & hardened
   description: >
     Use a ZGMISmart ZMR4 (ZHA) as a PIN keypad for things like a garage door.
     Press Start to arm (starts timer), press digits (1–4), then Confirm to validate.
-    Endpoint + command matching is handled in the action (no templated event_data).
-    This version includes logbook debug messages after Start, each Digit, and Confirm.
+    Action block performs endpoint/command matching (no templated event_data).
+    This version includes debug logbook entries and robust type handling.
   domain: automation
 
   input:
@@ -184,12 +184,13 @@ variables:
   v_d3_ep: !input digit3_endpoint
   v_d4_ep: !input digit4_endpoint
 
-  v_start_cmd_ovr: !input start_command_override
-  v_confirm_cmd_ovr: !input confirm_command_override
-  v_d1_cmd_ovr: !input digit1_command_override
-  v_d2_cmd_ovr: !input digit2_command_override
-  v_d3_cmd_ovr: !input digit3_command_override
-  v_d4_cmd_ovr: !input digit4_command_override
+  # Force all overrides to strings before using |length
+  v_start_cmd_ovr: "{{ ( !input start_command_override ) | default('', true) | string }}"
+  v_confirm_cmd_ovr: "{{ ( !input confirm_command_override ) | default('', true) | string }}"
+  v_d1_cmd_ovr: "{{ ( !input digit1_command_override ) | default('', true) | string }}"
+  v_d2_cmd_ovr: "{{ ( !input digit2_command_override ) | default('', true) | string }}"
+  v_d3_cmd_ovr: "{{ ( !input digit3_command_override ) | default('', true) | string }}"
+  v_d4_cmd_ovr: "{{ ( !input digit4_command_override ) | default('', true) | string }}"
 
 trigger:
   # Single ZHA event trigger; we'll sort out which button/press in the action
@@ -228,12 +229,12 @@ action:
               ep: "{{ trigger.event.data.endpoint_id|int(0) }}"
               cmd: "{{ trigger.event.data.command|string }}"
               # resolve desired commands (override if provided, else digit press command)
-              start_cmd: "{{ v_start_cmd_ovr if v_start_cmd_ovr|length>0 else v_press_cmd }}"
-              confirm_cmd: "{{ v_confirm_cmd_ovr if v_confirm_cmd_ovr|length>0 else v_press_cmd }}"
-              d1_cmd: "{{ v_d1_cmd_ovr if v_d1_cmd_ovr|length>0 else v_press_cmd }}"
-              d2_cmd: "{{ v_d2_cmd_ovr if v_d2_cmd_ovr|length>0 else v_press_cmd }}"
-              d3_cmd: "{{ v_d3_cmd_ovr if v_d3_cmd_ovr|length>0 else v_press_cmd }}"
-              d4_cmd: "{{ v_d4_cmd_ovr if v_d4_cmd_ovr|length>0 else v_press_cmd }}"
+              start_cmd: "{{ v_start_cmd_ovr if (v_start_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
+              confirm_cmd: "{{ v_confirm_cmd_ovr if (v_confirm_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
+              d1_cmd: "{{ v_d1_cmd_ovr if (v_d1_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
+              d2_cmd: "{{ v_d2_cmd_ovr if (v_d2_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
+              d3_cmd: "{{ v_d3_cmd_ovr if (v_d3_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
+              d4_cmd: "{{ v_d4_cmd_ovr if (v_d4_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
               # accept common Tuya/Zemismart command variants for digits
               allowed_digit_cmds: >
                 {{ [
@@ -272,7 +273,7 @@ action:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
                   - variables:
-                      cur: "{{ states(v_buffer) | default('') }}"
+                      cur: "{{ states(v_buffer) | default('', true) | string }}"
                       new_val: >-
                         {% if (cur|length) < (v_max|int) %}{{ cur ~ '1' }}{% else %}{{ cur }}{% endif %}
                   - service: input_text.set_value
@@ -295,7 +296,7 @@ action:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
                   - variables:
-                      cur: "{{ states(v_buffer) | default('') }}"
+                      cur: "{{ states(v_buffer) | default('', true) | string }}"
                       new_val: >-
                         {% if (cur|length) < (v_max|int) %}{{ cur ~ '2' }}{% else %}{{ cur }}{% endif %}
                   - service: input_text.set_value
@@ -318,7 +319,7 @@ action:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
                   - variables:
-                      cur: "{{ states(v_buffer) | default('') }}"
+                      cur: "{{ states(v_buffer) | default('', true) | string }}"
                       new_val: >-
                         {% if (cur|length) < (v_max|int) %}{{ cur ~ '3' }}{% else %}{{ cur }}{% endif %}
                   - service: input_text.set_value
@@ -341,7 +342,7 @@ action:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
                   - variables:
-                      cur: "{{ states(v_buffer) | default('') }}"
+                      cur: "{{ states(v_buffer) | default('', true) | string }}"
                       new_val: >-
                         {% if (cur|length) < (v_max|int) %}{{ cur ~ '4' }}{% else %}{{ cur }}{% endif %}
                   - service: input_text.set_value
