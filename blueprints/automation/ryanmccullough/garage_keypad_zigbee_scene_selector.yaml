@@ -1,5 +1,5 @@
 blueprint:
-  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA — debug, safe
+  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA — debug, safe v2
   description: >
     ZGMISmart ZMR4 (ZHA) as a PIN keypad for a garage door, etc.
     Start (arms via timer) → enter digits (1–4) → Confirm validates.
@@ -226,14 +226,7 @@ action:
           - variables:
               ep: "{{ trigger.event.data.endpoint_id|int(0) }}"
               cmd: "{{ (trigger.event.data.command|string) }}"
-              # resolve desired commands (override if provided, else digit press cmd) using safe 'or'
-              start_cmd: "{{ (v_start_cmd_ovr|string) or (v_press_cmd|string) }}"
-              confirm_cmd: "{{ (v_confirm_cmd_ovr|string) or (v_press_cmd|string) }}"
-              d1_cmd: "{{ (v_d1_cmd_ovr|string) or (v_press_cmd|string) }}"
-              d2_cmd: "{{ (v_d2_cmd_ovr|string) or (v_press_cmd|string) }}"
-              d3_cmd: "{{ (v_d3_cmd_ovr|string) or (v_press_cmd|string) }}"
-              d4_cmd: "{{ (v_d4_cmd_ovr|string) or (v_press_cmd|string) }}"
-              # accept common Tuya/Zemismart command variants for digits
+              # accept common Tuya/Zemi command variants for digits
               allowed_digit_cmds: >
                 {{ [
                     'remote_button_short_press',
@@ -248,7 +241,11 @@ action:
 
           - choose:
               # ===== START =====
-              - conditions: "{{ ep == v_start_ep|int and cmd == start_cmd }}"
+              - conditions: >
+                  {{ ep == v_start_ep|int and (
+                       (v_start_cmd_ovr == '' and cmd == v_press_cmd) or
+                       (v_start_cmd_ovr != '' and cmd == v_start_cmd_ovr)
+                     ) }}
                 sequence:
                   - service: input_text.set_value
                     target:
@@ -266,7 +263,11 @@ action:
                       message: "Start detected → timer started {{ v_timeout|int }}s, buffer cleared"
 
               # ===== DIGIT 1..4 =====
-              - conditions: "{{ ep == v_d1_ep|int and (cmd == d1_cmd or cmd in allowed_digit_cmds) }}"
+              - conditions: >
+                  {{ ep == v_d1_ep|int and (
+                       (v_d1_cmd_ovr == '' and (cmd == v_press_cmd or cmd in allowed_digit_cmds)) or
+                       (v_d1_cmd_ovr != '' and cmd == v_d1_cmd_ovr)
+                     ) }}
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
@@ -289,7 +290,11 @@ action:
                       name: "Garage Keypad"
                       message: "Digit 1 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
-              - conditions: "{{ ep == v_d2_ep|int and (cmd == d2_cmd or cmd in allowed_digit_cmds) }}"
+              - conditions: >
+                  {{ ep == v_d2_ep|int and (
+                       (v_d2_cmd_ovr == '' and (cmd == v_press_cmd or cmd in allowed_digit_cmds)) or
+                       (v_d2_cmd_ovr != '' and cmd == v_d2_cmd_ovr)
+                     ) }}
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
@@ -312,7 +317,11 @@ action:
                       name: "Garage Keypad"
                       message: "Digit 2 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
-              - conditions: "{{ ep == v_d3_ep|int and (cmd == d3_cmd or cmd in allowed_digit_cmds) }}"
+              - conditions: >
+                  {{ ep == v_d3_ep|int and (
+                       (v_d3_cmd_ovr == '' and (cmd == v_press_cmd or cmd in allowed_digit_cmds)) or
+                       (v_d3_cmd_ovr != '' and cmd == v_d3_cmd_ovr)
+                     ) }}
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
@@ -335,7 +344,11 @@ action:
                       name: "Garage Keypad"
                       message: "Digit 3 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
-              - conditions: "{{ ep == v_d4_ep|int and (cmd == d4_cmd or cmd in allowed_digit_cmds) }}"
+              - conditions: >
+                  {{ ep == v_d4_ep|int and (
+                       (v_d4_cmd_ovr == '' and (cmd == v_press_cmd or cmd in allowed_digit_cmds)) or
+                       (v_d4_cmd_ovr != '' and cmd == v_d4_cmd_ovr)
+                     ) }}
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
@@ -359,7 +372,11 @@ action:
                       message: "Digit 4 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
               # ===== CONFIRM =====
-              - conditions: "{{ ep == v_confirm_ep|int and cmd == confirm_cmd }}"
+              - conditions: >
+                  {{ ep == v_confirm_ep|int and (
+                       (v_confirm_cmd_ovr == '' and cmd == v_press_cmd) or
+                       (v_confirm_cmd_ovr != '' and cmd == v_confirm_cmd_ovr)
+                     ) }}
                 sequence:
                   - choose:
                       - conditions: "{{ states(v_buffer) == v_code }}"
