@@ -6,6 +6,7 @@ blueprint:
     then Confirm to validate the buffer. Works by matching zha_event command
     + endpoint_id. Defaults target ZMR4 short presses.
   domain: automation
+  source_url: https://raw.githubusercontent.com/ryanmccullough/home-assistant-blueprints/main/blueprints/automation/ryanmccullough/garage_keypad_zigbee_scene_selector.yaml
 
   input:
     # Helpers
