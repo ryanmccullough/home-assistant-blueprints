@@ -1,0 +1,280 @@
+blueprint:
+  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA
+  description: >
+    Use a ZGMISmart ZMR4 (ZHA) as a PIN keypad for things like a garage door.
+    Press Start to begin entry (starts a timer), press digit buttons (1–4),
+    then Confirm to validate the buffer. Works by matching zha_event command
+    + endpoint_id. Defaults target ZMR4 short presses.
+  domain: automation
+
+  input:
+    # Helpers
+    buffer_text:
+      name: Buffer input_text
+      selector:
+        entity:
+          domain: input_text
+    entry_timer:
+      name: Entry timer
+      selector:
+        entity:
+          domain: timer
+
+    # Code & timing
+    passcode:
+      name: Passcode (digits 1–4)
+      default: "1331"
+      selector:
+        text: {}
+    max_length:
+      name: Max buffer length
+      default: 4
+      selector:
+        number:
+          min: 1
+          max: 12
+          step: 1
+          mode: box
+    timeout_seconds:
+      name: Timeout (seconds)
+      default: 10
+      selector:
+        number:
+          min: 3
+          max: 60
+          step: 1
+          mode: box
+
+    # Actions
+    on_success:
+      name: Action on successful code
+      default: []
+      selector:
+        action: {}
+    on_failure:
+      name: Action on failed code
+      default: []
+      selector:
+        action: {}
+
+    # ZHA device + event matching
+    zha_device:
+      name: ZMR4 device (ZHA)
+      selector:
+        device:
+          integration: zha
+          multiple: false
+
+    # Which press type to use (ZMR4 short-press by default)
+    zha_command_press:
+      name: ZHA command for presses
+      description: >
+        For ZMR4 short presses use 'remote_button_short_press'.
+        If your device reports different commands (e.g. 'on', 'off',
+        'move_to_level_with_on_off', 'move_to_color_temp'), put one here
+        and change per-button overrides below as needed.
+      default: "remote_button_short_press"
+      selector:
+        text: {}
+
+    # Button → endpoint_id mapping (ZMR4 is typically 1–4)
+    start_endpoint:
+      name: Start button endpoint_id
+      default: 1
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
+    confirm_endpoint:
+      name: Confirm button endpoint_id
+      default: 4
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
+    digit1_endpoint:
+      name: Digit 1 endpoint_id
+      default: 1
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
+    digit2_endpoint:
+      name: Digit 2 endpoint_id
+      default: 2
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
+    digit3_endpoint:
+      name: Digit 3 endpoint_id
+      default: 3
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
+    digit4_endpoint:
+      name: Digit 4 endpoint_id
+      default: 4
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
+
+    # (Optional) Per-button command override (leave blank to use zha_command_press)
+    start_command_override:
+      name: Start command override (optional)
+      default: ""
+      selector: { text: {} }
+    confirm_command_override:
+      name: Confirm command override (optional)
+      default: ""
+      selector: { text: {} }
+    digit1_command_override:
+      name: Digit 1 command override (optional)
+      default: ""
+      selector: { text: {} }
+    digit2_command_override:
+      name: Digit 2 command override (optional)
+      default: ""
+      selector: { text: {} }
+    digit3_command_override:
+      name: Digit 3 command override (optional)
+      default: ""
+      selector: { text: {} }
+    digit4_command_override:
+      name: Digit 4 command override (optional)
+      default: ""
+      selector: { text: {} }
+
+mode: queued
+max_exceeded: silent
+
+variables:
+  v_buffer: !input buffer_text
+  v_timer: !input entry_timer
+  v_code: !input passcode
+  v_max: !input max_length
+  v_timeout: !input timeout_seconds
+  v_press_cmd: !input zha_command_press
+
+  v_start_ep: !input start_endpoint
+  v_confirm_ep: !input confirm_endpoint
+  v_d1_ep: !input digit1_endpoint
+  v_d2_ep: !input digit2_endpoint
+  v_d3_ep: !input digit3_endpoint
+  v_d4_ep: !input digit4_endpoint
+
+  v_start_cmd: >-
+    {{ iif((!input start_command_override)|length>0, (!input start_command_override), v_press_cmd) }}
+  v_confirm_cmd: >-
+    {{ iif((!input confirm_command_override)|length>0, (!input confirm_command_override), v_press_cmd) }}
+  v_d1_cmd: >-
+    {{ iif((!input digit1_command_override)|length>0, (!input digit1_command_override), v_press_cmd) }}
+  v_d2_cmd: >-
+    {{ iif((!input digit2_command_override)|length>0, (!input digit2_command_override), v_press_cmd) }}
+  v_d3_cmd: >-
+    {{ iif((!input digit3_command_override)|length>0, (!input digit3_command_override), v_press_cmd) }}
+  v_d4_cmd: >-
+    {{ iif((!input digit4_command_override)|length>0, (!input digit4_command_override), v_press_cmd) }}
+
+trigger:
+  # Start
+  - id: start
+    platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input zha_device
+      command: "{{ v_start_cmd }}"
+    variables:
+      ep: "{{ trigger.event.data.endpoint_id|int(0) }}"
+    condition: "{{ ep == v_start_ep|int }}"
+  # Confirm
+  - id: confirm
+    platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input zha_device
+      command: "{{ v_confirm_cmd }}"
+    variables:
+      ep: "{{ trigger.event.data.endpoint_id|int(0) }}"
+    condition: "{{ ep == v_confirm_ep|int }}"
+  # Digits 1..4
+  - id: d1
+    platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input zha_device
+      command: "{{ v_d1_cmd }}"
+    variables:
+      ep: "{{ trigger.event.data.endpoint_id|int(0) }}"
+    condition: "{{ ep == v_d1_ep|int }}"
+  - id: d2
+    platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input zha_device
+      command: "{{ v_d2_cmd }}"
+    variables:
+      ep: "{{ trigger.event.data.endpoint_id|int(0) }}"
+    condition: "{{ ep == v_d2_ep|int }}"
+  - id: d3
+    platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input zha_device
+      command: "{{ v_d3_cmd }}"
+    variables:
+      ep: "{{ trigger.event.data.endpoint_id|int(0) }}"
+    condition: "{{ ep == v_d3_ep|int }}"
+  - id: d4
+    platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input zha_device
+      command: "{{ v_d4_cmd }}"
+    variables:
+      ep: "{{ trigger.event.data.endpoint_id|int(0) }}"
+    condition: "{{ ep == v_d4_ep|int }}"
+
+  # Timeout (from timer helper)
+  - id: timeout
+    platform: event
+    event_type: timer.finished
+    event_data:
+      entity_id: !input entry_timer
+
+action:
+  - choose:
+      # ===== START =====
+      - conditions: "{{ trigger.id == 'start' }}"
+        sequence:
+          - service: input_text.set_value
+            target: { entity_id: "{{ v_buffer }}" }
+            data: { value: "" }
+          - service: timer.start
+            target: { entity_id: "{{ v_timer }}" }
+            data: { duration: "{{ v_timeout|int }}" }
+
+      # ===== DIGITS =====
+      - conditions: "{{ trigger.id in ['d1','d2','d3','d4'] }}"
+        sequence:
+          - condition: template
+            value_template: "{{ is_state(v_timer, 'active') }}"
+          - variables:
+              digit: >-
+                {% set map = {'d1':'1','d2':'2','d3':'3','d4':'4'} %}
+                {{ map[trigger.id] }}
+              cur: "{{ states(v_buffer) | default('') }}"
+              new_val: >-
+                {% if (cur|length) < (v_max|int) %}{{ cur ~ digit }}{% else %}{{ cur }}{% endif %}
+          - service: input_text.set_value
+            target: { entity_id: "{{ v_buffer }}" }
+            data: { value: "{{ new_val }}" }
+          - service: timer.start
+            target: { entity_id: "{{ v_timer }}" }
+            data: { duration: "{{ v_timeout|int }}" }
+
+      # ===== CONFIRM =====
+      - conditions: "{{ trigger.id == 'confirm' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ states(v_buffer) == v_code }}"
+                sequence: !input on_success
+              - conditions: "{{ states(v_buffer) != v_code }}"
+                sequence: !input on_failure
+          - service: input_text.set_value
+            target: { entity_id: "{{ v_buffer }}" }
+            data: { value: "" }
+          - service: timer.cancel
+            target: { entity_id: "{{ v_timer }}" }
+
+      # ===== TIMEOUT =====
+      - conditions: "{{ trigger.id == 'timeout' }}"
+        sequence:
+          - service: input_text.set_value
+            target: { entity_id: "{{ v_buffer }}" }
+            data: { value: "" }
+    default: []
