@@ -1,9 +1,8 @@
 blueprint:
-  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA — debug, safe v2
+  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA — ultra-safe debug
   description: >
-    ZGMISmart ZMR4 (ZHA) as a PIN keypad for a garage door, etc.
-    Start (arms via timer) → enter digits (1–4) → Confirm validates.
-    Robust to Tuya/Zemi command variants; includes logbook debug.
+    ZGMISmart ZMR4 (ZHA) as a PIN keypad. Start (arms via timer) → enter digits (1–4) → Confirm validates.
+    No length() usage anywhere. Debug logbook entries show event→match→buffer updates.
   domain: automation
 
   input:
@@ -25,15 +24,6 @@ blueprint:
       default: "1234"
       selector:
         text: {}
-    max_length:
-      name: Max buffer length
-      default: 4
-      selector:
-        number:
-          min: 1
-          max: 12
-          step: 1
-          mode: box
     timeout_seconds:
       name: Timeout (seconds)
       default: 10
@@ -64,114 +54,57 @@ blueprint:
           integration: zha
           multiple: false
 
-    # Which command represents a "digit press" (ZMR4 short press by default)
+    # Commands/endpoints
     zha_command_press:
-      name: ZHA command for digit presses
-      description: Short press is usually 'remote_button_short_press'
+      name: ZHA command for digit presses (short)
       default: "remote_button_short_press"
       selector:
         text: {}
 
-    # Button → endpoint_id mapping (ZMR4 is typically 1–4)
     start_endpoint:
       name: Start button endpoint_id
       default: 1
-      selector:
-        number:
-          min: 1
-          max: 16
-          step: 1
-          mode: box
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
     confirm_endpoint:
       name: Confirm button endpoint_id
       default: 4
-      selector:
-        number:
-          min: 1
-          max: 16
-          step: 1
-          mode: box
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
     digit1_endpoint:
       name: Digit 1 endpoint_id
       default: 1
-      selector:
-        number:
-          min: 1
-          max: 16
-          step: 1
-          mode: box
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
     digit2_endpoint:
       name: Digit 2 endpoint_id
       default: 2
-      selector:
-        number:
-          min: 1
-          max: 16
-          step: 1
-          mode: box
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
     digit3_endpoint:
       name: Digit 3 endpoint_id
       default: 3
-      selector:
-        number:
-          min: 1
-          max: 16
-          step: 1
-          mode: box
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
     digit4_endpoint:
       name: Digit 4 endpoint_id
       default: 4
-      selector:
-        number:
-          min: 1
-          max: 16
-          step: 1
-          mode: box
+      selector: { number: { min: 1, max: 16, step: 1, mode: box } }
 
-    # Optional per-button command overrides (blank = use zha_command_press for digits;
-    # set Start/Confirm to double/long press, etc.)
     start_command_override:
-      name: Start command override (optional)
-      description: e.g., remote_button_double_press
-      default: ""
-      selector:
-        text: {}
+      name: Start command override
+      description: Put your double-press command here
+      default: "remote_button_double_press"
+      selector: { text: {} }
     confirm_command_override:
-      name: Confirm command override (optional)
-      description: e.g., remote_button_long_press
-      default: ""
-      selector:
-        text: {}
-    digit1_command_override:
-      name: Digit 1 command override (optional)
-      default: ""
-      selector:
-        text: {}
-    digit2_command_override:
-      name: Digit 2 command override (optional)
-      default: ""
-      selector:
-        text: {}
-    digit3_command_override:
-      name: Digit 3 command override (optional)
-      default: ""
-      selector:
-        text: {}
-    digit4_command_override:
-      name: Digit 4 command override (optional)
-      default: ""
-      selector:
-        text: {}
+      name: Confirm command override
+      description: Put your long-press command here
+      default: "remote_button_long_press"
+      selector: { text: {} }
 
 mode: queued
 max_exceeded: silent
 
-# Raw inputs cached (no templates here)
+# Cache inputs (no templating tricks)
 variables:
   v_buffer: !input buffer_text
   v_timer: !input entry_timer
   v_code: !input passcode
-  v_max: !input max_length
   v_timeout: !input timeout_seconds
 
   v_press_cmd: !input zha_command_press
@@ -183,12 +116,8 @@ variables:
   v_d3_ep: !input digit3_endpoint
   v_d4_ep: !input digit4_endpoint
 
-  v_start_cmd_ovr: !input start_command_override
-  v_confirm_cmd_ovr: !input confirm_command_override
-  v_d1_cmd_ovr: !input digit1_command_override
-  v_d2_cmd_ovr: !input digit2_command_override
-  v_d3_cmd_ovr: !input digit3_command_override
-  v_d4_cmd_ovr: !input digit4_command_override
+  v_start_cmd: !input start_command_override
+  v_confirm_cmd: !input confirm_command_override
 
 trigger:
   # Single ZHA event trigger; we branch in action
@@ -211,10 +140,8 @@ action:
       - conditions: "{{ trigger.id == 'timeout' }}"
         sequence:
           - service: input_text.set_value
-            target:
-              entity_id: "{{ v_buffer }}"
-            data:
-              value: ""
+            target: { entity_id: "{{ v_buffer }}" }
+            data: { value: "" }
           - service: logbook.log
             data:
               name: "Garage Keypad"
@@ -225,15 +152,7 @@ action:
         sequence:
           - variables:
               ep: "{{ trigger.event.data.endpoint_id|int(0) }}"
-              cmd: "{{ (trigger.event.data.command|string) }}"
-              # accept common Tuya/Zemi command variants for digits
-              allowed_digit_cmds: >
-                {{ [
-                    'remote_button_short_press',
-                    'on','off','toggle',
-                    'move_to_level_with_on_off',
-                    'move_to_color_temp'
-                  ] }}
+              cmd: "{{ trigger.event.data.command|string }}"
           - service: logbook.log
             data:
               name: "Garage Keypad"
@@ -241,142 +160,106 @@ action:
 
           - choose:
               # ===== START =====
-              - conditions: >
-                  {{ ep == v_start_ep|int and (
-                       (v_start_cmd_ovr == '' and cmd == v_press_cmd) or
-                       (v_start_cmd_ovr != '' and cmd == v_start_cmd_ovr)
-                     ) }}
+              - conditions: "{{ ep == v_start_ep|int and cmd == (v_start_cmd|string) }}"
                 sequence:
                   - service: input_text.set_value
-                    target:
-                      entity_id: "{{ v_buffer }}"
-                    data:
-                      value: ""
+                    target: { entity_id: "{{ v_buffer }}" }
+                    data: { value: "" }
                   - service: timer.start
-                    target:
-                      entity_id: "{{ v_timer }}"
-                    data:
-                      duration: "{{ v_timeout|int }}"
+                    target: { entity_id: "{{ v_timer }}" }
+                    data: { duration: "{{ v_timeout|int }}" }
                   - service: logbook.log
                     data:
                       name: "Garage Keypad"
-                      message: "Start detected → timer started {{ v_timeout|int }}s, buffer cleared"
+                      message: "Start → timer started {{ v_timeout|int }}s; buffer cleared"
 
-              # ===== DIGIT 1..4 =====
+              # ===== DIGIT 1..4 (accept short OR common Tuya fallbacks) =====
               - conditions: >
-                  {{ ep == v_d1_ep|int and (
-                       (v_d1_cmd_ovr == '' and (cmd == v_press_cmd or cmd in allowed_digit_cmds)) or
-                       (v_d1_cmd_ovr != '' and cmd == v_d1_cmd_ovr)
-                     ) }}
+                  {{ ep == v_d1_ep|int and (cmd == (v_press_cmd|string) or
+                                             cmd == 'on' or cmd == 'off' or cmd == 'toggle' or
+                                             cmd == 'move_to_level_with_on_off' or cmd == 'move_to_color_temp') }}
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
                   - variables:
                       cur: "{{ states(v_buffer) | default('', true) | string }}"
-                      new_val: >-
-                        {% if (cur|length) < (v_max|int) %}{{ cur ~ '1' }}{% else %}{{ cur }}{% endif %}
+                      new_val: "{{ cur ~ '1' }}"
                   - service: input_text.set_value
-                    target:
-                      entity_id: "{{ v_buffer }}"
-                    data:
-                      value: "{{ new_val }}"
+                    target: { entity_id: "{{ v_buffer }}" }
+                    data: { value: "{{ new_val }}" }
                   - service: timer.start
-                    target:
-                      entity_id: "{{ v_timer }}"
-                    data:
-                      duration: "{{ v_timeout|int }}"
+                    target: { entity_id: "{{ v_timer }}" }
+                    data: { duration: "{{ v_timeout|int }}" }
                   - service: logbook.log
                     data:
                       name: "Garage Keypad"
                       message: "Digit 1 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
               - conditions: >
-                  {{ ep == v_d2_ep|int and (
-                       (v_d2_cmd_ovr == '' and (cmd == v_press_cmd or cmd in allowed_digit_cmds)) or
-                       (v_d2_cmd_ovr != '' and cmd == v_d2_cmd_ovr)
-                     ) }}
+                  {{ ep == v_d2_ep|int and (cmd == (v_press_cmd|string) or
+                                             cmd == 'on' or cmd == 'off' or cmd == 'toggle' or
+                                             cmd == 'move_to_level_with_on_off' or cmd == 'move_to_color_temp') }}
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
                   - variables:
                       cur: "{{ states(v_buffer) | default('', true) | string }}"
-                      new_val: >-
-                        {% if (cur|length) < (v_max|int) %}{{ cur ~ '2' }}{% else %}{{ cur }}{% endif %}
+                      new_val: "{{ cur ~ '2' }}"
                   - service: input_text.set_value
-                    target:
-                      entity_id: "{{ v_buffer }}"
-                    data:
-                      value: "{{ new_val }}"
+                    target: { entity_id: "{{ v_buffer }}" }
+                    data: { value: "{{ new_val }}" }
                   - service: timer.start
-                    target:
-                      entity_id: "{{ v_timer }}"
-                    data:
-                      duration: "{{ v_timeout|int }}"
+                    target: { entity_id: "{{ v_timer }}" }
+                    data: { duration: "{{ v_timeout|int }}" }
                   - service: logbook.log
                     data:
                       name: "Garage Keypad"
                       message: "Digit 2 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
               - conditions: >
-                  {{ ep == v_d3_ep|int and (
-                       (v_d3_cmd_ovr == '' and (cmd == v_press_cmd or cmd in allowed_digit_cmds)) or
-                       (v_d3_cmd_ovr != '' and cmd == v_d3_cmd_ovr)
-                     ) }}
+                  {{ ep == v_d3_ep|int and (cmd == (v_press_cmd|string) or
+                                             cmd == 'on' or cmd == 'off' or cmd == 'toggle' or
+                                             cmd == 'move_to_level_with_on_off' or cmd == 'move_to_color_temp') }}
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
                   - variables:
                       cur: "{{ states(v_buffer) | default('', true) | string }}"
-                      new_val: >-
-                        {% if (cur|length) < (v_max|int) %}{{ cur ~ '3' }}{% else %}{{ cur }}{% endif %}
+                      new_val: "{{ cur ~ '3' }}"
                   - service: input_text.set_value
-                    target:
-                      entity_id: "{{ v_buffer }}"
-                    data:
-                      value: "{{ new_val }}"
+                    target: { entity_id: "{{ v_buffer }}" }
+                    data: { value: "{{ new_val }}" }
                   - service: timer.start
-                    target:
-                      entity_id: "{{ v_timer }}"
-                    data:
-                      duration: "{{ v_timeout|int }}"
+                    target: { entity_id: "{{ v_timer }}" }
+                    data: { duration: "{{ v_timeout|int }}" }
                   - service: logbook.log
                     data:
                       name: "Garage Keypad"
                       message: "Digit 3 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
               - conditions: >
-                  {{ ep == v_d4_ep|int and (
-                       (v_d4_cmd_ovr == '' and (cmd == v_press_cmd or cmd in allowed_digit_cmds)) or
-                       (v_d4_cmd_ovr != '' and cmd == v_d4_cmd_ovr)
-                     ) }}
+                  {{ ep == v_d4_ep|int and (cmd == (v_press_cmd|string) or
+                                             cmd == 'on' or cmd == 'off' or cmd == 'toggle' or
+                                             cmd == 'move_to_level_with_on_off' or cmd == 'move_to_color_temp') }}
                 sequence:
                   - condition: template
                     value_template: "{{ is_state(v_timer, 'active') }}"
                   - variables:
                       cur: "{{ states(v_buffer) | default('', true) | string }}"
-                      new_val: >-
-                        {% if (cur|length) < (v_max|int) %}{{ cur ~ '4' }}{% else %}{{ cur }}{% endif %}
+                      new_val: "{{ cur ~ '4' }}"
                   - service: input_text.set_value
-                    target:
-                      entity_id: "{{ v_buffer }}"
-                    data:
-                      value: "{{ new_val }}"
+                    target: { entity_id: "{{ v_buffer }}" }
+                    data: { value: "{{ new_val }}" }
                   - service: timer.start
-                    target:
-                      entity_id: "{{ v_timer }}"
-                    data:
-                      duration: "{{ v_timeout|int }}"
+                    target: { entity_id: "{{ v_timer }}" }
+                    data: { duration: "{{ v_timeout|int }}" }
                   - service: logbook.log
                     data:
                       name: "Garage Keypad"
                       message: "Digit 4 → cmd={{ cmd }}, ep={{ ep }}, buffer={{ states(v_buffer) }}"
 
               # ===== CONFIRM =====
-              - conditions: >
-                  {{ ep == v_confirm_ep|int and (
-                       (v_confirm_cmd_ovr == '' and cmd == v_press_cmd) or
-                       (v_confirm_cmd_ovr != '' and cmd == v_confirm_cmd_ovr)
-                     ) }}
+              - conditions: "{{ ep == v_confirm_ep|int and cmd == (v_confirm_cmd|string) }}"
                 sequence:
                   - choose:
                       - conditions: "{{ states(v_buffer) == v_code }}"
@@ -398,13 +281,10 @@ action:
                               - conditions: "{{ true }}"
                                 sequence: !input on_failure
                   - service: input_text.set_value
-                    target:
-                      entity_id: "{{ v_buffer }}"
-                    data:
-                      value: ""
+                    target: { entity_id: "{{ v_buffer }}" }
+                    data: { value: "" }
                   - service: timer.cancel
-                    target:
-                      entity_id: "{{ v_timer }}"
+                    target: { entity_id: "{{ v_timer }}" }
                   - service: logbook.log
                     data:
                       name: "Garage Keypad"
