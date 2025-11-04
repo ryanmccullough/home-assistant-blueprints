@@ -1,10 +1,9 @@
 blueprint:
-  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA — debug & hardened
+  name: ZMR4 4-Button Keypad (Start → Digits → Confirm) for ZHA — debug, safe
   description: >
-    Use a ZGMISmart ZMR4 (ZHA) as a PIN keypad for things like a garage door.
-    Press Start to arm (starts timer), press digits (1–4), then Confirm to validate.
-    Action block performs endpoint/command matching (no templated event_data).
-    This version includes debug logbook entries and robust type handling.
+    ZGMISmart ZMR4 (ZHA) as a PIN keypad for a garage door, etc.
+    Start (arms via timer) → enter digits (1–4) → Confirm validates.
+    Robust to Tuya/Zemi command variants; includes logbook debug.
   domain: automation
 
   input:
@@ -129,8 +128,8 @@ blueprint:
           step: 1
           mode: box
 
-    # Optional per-button command overrides (leave blank to use zha_command_press for digits;
-    # set distinct commands for Start/Confirm if you want double/long press, etc.)
+    # Optional per-button command overrides (blank = use zha_command_press for digits;
+    # set Start/Confirm to double/long press, etc.)
     start_command_override:
       name: Start command override (optional)
       description: e.g., remote_button_double_press
@@ -167,7 +166,7 @@ blueprint:
 mode: queued
 max_exceeded: silent
 
-# Cache input values into plain variables (no templates with !input inside other templates)
+# Raw inputs cached (no templates here)
 variables:
   v_buffer: !input buffer_text
   v_timer: !input entry_timer
@@ -184,16 +183,15 @@ variables:
   v_d3_ep: !input digit3_endpoint
   v_d4_ep: !input digit4_endpoint
 
-  # Force all overrides to strings before using |length
-  v_start_cmd_ovr: "{{ ( !input start_command_override ) | default('', true) | string }}"
-  v_confirm_cmd_ovr: "{{ ( !input confirm_command_override ) | default('', true) | string }}"
-  v_d1_cmd_ovr: "{{ ( !input digit1_command_override ) | default('', true) | string }}"
-  v_d2_cmd_ovr: "{{ ( !input digit2_command_override ) | default('', true) | string }}"
-  v_d3_cmd_ovr: "{{ ( !input digit3_command_override ) | default('', true) | string }}"
-  v_d4_cmd_ovr: "{{ ( !input digit4_command_override ) | default('', true) | string }}"
+  v_start_cmd_ovr: !input start_command_override
+  v_confirm_cmd_ovr: !input confirm_command_override
+  v_d1_cmd_ovr: !input digit1_command_override
+  v_d2_cmd_ovr: !input digit2_command_override
+  v_d3_cmd_ovr: !input digit3_command_override
+  v_d4_cmd_ovr: !input digit4_command_override
 
 trigger:
-  # Single ZHA event trigger; we'll sort out which button/press in the action
+  # Single ZHA event trigger; we branch in action
   - id: zha
     platform: event
     event_type: zha_event
@@ -227,14 +225,14 @@ action:
         sequence:
           - variables:
               ep: "{{ trigger.event.data.endpoint_id|int(0) }}"
-              cmd: "{{ trigger.event.data.command|string }}"
-              # resolve desired commands (override if provided, else digit press command)
-              start_cmd: "{{ v_start_cmd_ovr if (v_start_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
-              confirm_cmd: "{{ v_confirm_cmd_ovr if (v_confirm_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
-              d1_cmd: "{{ v_d1_cmd_ovr if (v_d1_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
-              d2_cmd: "{{ v_d2_cmd_ovr if (v_d2_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
-              d3_cmd: "{{ v_d3_cmd_ovr if (v_d3_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
-              d4_cmd: "{{ v_d4_cmd_ovr if (v_d4_cmd_ovr|string)|length > 0 else (v_press_cmd|string) }}"
+              cmd: "{{ (trigger.event.data.command|string) }}"
+              # resolve desired commands (override if provided, else digit press cmd) using safe 'or'
+              start_cmd: "{{ (v_start_cmd_ovr|string) or (v_press_cmd|string) }}"
+              confirm_cmd: "{{ (v_confirm_cmd_ovr|string) or (v_press_cmd|string) }}"
+              d1_cmd: "{{ (v_d1_cmd_ovr|string) or (v_press_cmd|string) }}"
+              d2_cmd: "{{ (v_d2_cmd_ovr|string) or (v_press_cmd|string) }}"
+              d3_cmd: "{{ (v_d3_cmd_ovr|string) or (v_press_cmd|string) }}"
+              d4_cmd: "{{ (v_d4_cmd_ovr|string) or (v_press_cmd|string) }}"
               # accept common Tuya/Zemismart command variants for digits
               allowed_digit_cmds: >
                 {{ [
